@@ -1,0 +1,127 @@
+---
+title: "Illinois Coronavirus Map"
+author: "Mark Kiel"
+date: "11/16/2020"
+always_allow_html: yes
+output: html_document
+---
+
+```{css, echo=FALSE}
+h1.title {
+   text-align: center;
+   background-color: #02033E;
+   color: white;
+}
+.dateslider {
+   display: none;
+   width: 50%;
+   background-color: #DCDCDC;
+}
+#dateslide {
+   width: 100%;
+}
+```
+
+<br />
+
+<h2 id="docHdr">2020 Confirmed Positive Coronavirus Cases in the State of Illinois</h2>
+<span>Select the month to view and click on a marker to see the total positive case count for a specific county.</span><br />
+
+```{r, eval=FALSE, echo=FALSE}
+install.packages("leaflet")
+```
+
+```{r setup, echo=FALSE}
+library(leaflet)
+url <- "https:/enigmaforensics.com/covid-19/us/state/Illinois_Cases_Delta_By_Date.csv"
+filename <- "illinois-covid-confirmed.csv"
+if (!file.exists(filename)) download.file(url,  filename, method="libcurl")
+data <- read.csv("illinois-covid-confirmed.csv")
+gps <- read.csv("ilcountygps.csv")
+```
+
+```{r tidydata, echo=FALSE}
+ilcounties <- data.frame(County=data[1])
+for (i in 1:9) {
+  colname <- paste("2020.0", i, sep="")
+  idxs <- grep(paste("X2020.0", i, sep=""), names(data))
+  ilcounties[,colname] <- apply(data[,idxs], 1, sum)
+}  
+for (i in 10:12) {
+  colname <- paste("2020.", i, sep="")
+  idxs <- grep(paste("X2020.", i, sep=""), names(data))
+  ilcounties[,colname] <- apply(data[,idxs], 1, sum)
+}
+
+ilcounties  <- ilcounties[-c(72,92),]  
+ilcounties$County = as.character(ilcounties$County)
+gps$County = as.character(gps$County)
+ilcounties = merge(ilcounties, gps, by="County")
+```
+
+```{r test, echo=FALSE}
+
+```
+
+```{r map, echo=FALSE}
+casesOverZero <- function(month) {
+  colName <- paste("2020.", month, sep="")
+  caseData <- data.frame(ilcounties["County"], ilcounties[colName], ilcounties[15:16])
+  names(caseData)[2] <- c("Cases")
+  subset(caseData, caseData$Cases>0)
+}
+
+qpal <- colorQuantile("plasma" ,  seq(1, 80000, by=10000), n=10)
+
+januaryCases <- casesOverZero("01")
+februaryCases <- casesOverZero("02")
+marchCases <- casesOverZero("03")
+aprilCases <- casesOverZero("04")
+mayCases <- casesOverZero("05")
+juneCases <- casesOverZero("06")
+julyCases <- casesOverZero("07")
+augustCases <- casesOverZero("08")
+septemberCases <- casesOverZero("09")
+octoberCases <- casesOverZero("10")
+novemberCases <- casesOverZero("11")
+decemberCases <- casesOverZero("12")
+
+my_map <- leaflet() %>%
+  setView(lat=39.799999, lng=-89.650002, zoom=6) %>%
+  addTiles() %>%
+  addCircleMarkers(data=januaryCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="January") %>%
+  addCircleMarkers(data=februaryCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="February") %>%
+  addCircleMarkers(data=marchCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="March") %>%
+  addCircleMarkers(data=aprilCases, lng=~Long, lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="April") %>%
+  addCircleMarkers(data=mayCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="May") %>%
+  addCircleMarkers(data=juneCases, lng=~Long,  lat=~Lat, radius=~Cases/700,  popup=~as.character(Cases), color=~qpal(Cases), group="June") %>%
+  addCircleMarkers(data=julyCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="July") %>%
+  addCircleMarkers(data=augustCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="August") %>%
+  addCircleMarkers(data=septemberCases, lng=~Long,  lat=~Lat, radius=~Cases/700,  popup=~as.character(Cases), color=~qpal(Cases), group="September") %>%
+  addCircleMarkers(data=octoberCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="October") %>%
+  addCircleMarkers(data=novemberCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="November") %>%
+  addCircleMarkers(data=decemberCases, lng=~Long,  lat=~Lat, radius=~Cases/700, popup=~as.character(Cases), color=~qpal(Cases), group="December") %>%
+  addLayersControl(
+    baseGroups=c("January", "February", "March", "April", "May", "June", "July", "August",
+                              "September", "October", "November", "December"),
+    options = layersControlOptions(collapsed=FALSE))
+my_map
+```
+
+<div class="dateslider">
+  <input type="range" min="1"  max="12" value="3" class="slider" id="dateslide">
+</div>
+
+```{js init, echo=FALSE}
+let months = ["January", "February", "March", "April", "May", "June", "July", 
+  "August", "September", "October", "November", "December"];
+let slide = document.getElementById("dateslide");
+let month = slide.value;
+let monthTxt = document.getElementById("monthHdr");
+monthTxt.innerHTML = months[month-1];
+
+slide.onchange = function()  {
+  month = slide.value;
+  monthTxt.innerHTML = months[month-1];
+}
+```
