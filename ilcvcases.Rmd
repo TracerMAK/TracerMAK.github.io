@@ -1,0 +1,105 @@
+---
+title: "Illinois Coronavirus Cases"
+author: "Mark Kiel"
+date: "`r Sys.Date()`"
+always_allow_html: yes
+output: ioslides_presentation
+---
+
+```{css, echo=FALSE}
+h1.title {
+   text-align: center;
+   background-color: #02033E;
+   color: white;
+}
+```
+
+## 2020 Confirmed Positive Coronavirus Cases in the State of Illinois
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+library(plotly)
+library(crosstalk)
+url <- "https:/enigmaforensics.com/covid-19/us/state/Illinois_Cases_Delta_By_Date.csv"
+filename <- "illinois-covid-confirmed.csv"
+if (!file.exists(filename)) download.file(url,  filename, method="libcurl")
+data <- read.csv("illinois-covid-confirmed.csv")
+```
+
+```{r tidydata, echo=FALSE}
+ilcounties <- data.frame(County=data[1])
+for (i in 1:9) {
+  colname <- paste("2020.0", i, sep="")
+  idxs <- grep(paste("X2020.0", i, sep=""), names(data))
+  ilcounties[,colname] <- apply(data[,idxs], 1, sum)
+}  
+for (i in 10:12) {
+  colname <- paste("2020.", i, sep="")
+  idxs <- grep(paste("X2020.", i, sep=""), names(data))
+  ilcounties[,colname] <- apply(data[,idxs], 1, sum)
+}
+ilcounties  <- ilcounties[-c(72,92),]  
+ilcounties$County = as.character(ilcounties$County)
+mnths <- c("January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December")
+
+ilcounties_long <- reshape(ilcounties, varying=list(2:13), direction="long")
+names(ilcounties_long) <- c("County", "Month", "Cases", "Id")
+```
+
+```{r dotplot, echo=FALSE, message=FALSE, warning=FALSE}
+fig <- plot_ly(ilcounties_long, x=~Month, y=~log(Cases), type="scatter", mode="markers", size=~Cases,
+                      text=~paste("County: ", County, "<br>Cases: ", Cases), color=~Month) %>%
+    layout(xaxis=list(tickvals=seq(1:12), ticktext=mnths), 
+                title="Hover over a marker to view the county case total for that month")
+fig
+```
+
+## 2020 Yearly Trend by County
+
+```{r makelineplot, echo=FALSE, eval=FALSE, message=FALSE, warning=FALSE}
+makelineplot <- function(cnty) {
+    countydata <- subset(ilcounties, County==cnty)
+    countydata <- as.data.frame(t(countydata[-1]))
+    names(countydata) = c("Sums")
+    lineplot <- plot_ly(countydata, x=seq(1:12), y=~Sums, type='scatter', mode='lines') %>%
+            layout(xaxis=list(tickvals=seq(1:12), ticktext=mnths), title="Monthly Coronavirus Cases by County")
+    lineplot
+}    
+```
+
+```{r selector, eval=FALSE, echo=FALSE, results='asis'}
+cat("<select name="county" id="counties", onchange="changePlot()"></select>")
+```
+
+```{r multiplots, echo=FALSE, message=FALSE, warning=FALSE}
+shareddata <- SharedData$new(ilcounties_long, key=~Id)
+p <- shareddata %>%
+    plot_ly(x=~Month, y=~Cases, type='scatter', mode='lines') %>%
+       layout(xaxis=list(tickvals=seq(1:12), ticktext=mnths), title="Monthly Coronavirus Cases by County")
+       
+bscols(widths=c(3,NA), filter_select(id="counties", label="Select a County", sharedData=shareddata,
+                                                              multiple=FALSE,group=~County), p)
+```
+
+```{r js-selectbox, echo=FALSE, eval=FALSE, results='asis'}
+counties <- ilcounties$County
+cat("<script>")
+cat("var arr = [", sapply(counties, function(x) paste0('"', x, '",')), "];")
+cat("let sb =document.getElementById('counties');")
+cat("for (let i = 1; i <= 102; i++) {
+    option = document.createElement('option');
+    option.value = i;
+    option.text = arr[i-1];
+    sb.appendChild(option);
+}")
+cat("</script>")
+```
+
+```{r lineplot, echo=FALSE, eval=FALSE, message=FALSE, warning=FALSE}
+makelineplot("Adams")
+```
+
+## Helpful Hints
+
+<span>The 'crosstalk' R package is very useful for utilizing select boxes for graph updating.
+Trying to implement updating with just the 'plotly' package is difficult and cumbersome.</span>
